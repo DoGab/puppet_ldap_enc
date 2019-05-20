@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # Puppet LDAP Enc
 # Author: Dominic Gabriel
-# Version: 0.3
+# Version: 0.4
 #
 # Input: FQDN (server.example.com)
 # Output: YAML
@@ -15,8 +15,8 @@
 # - role_apache
 # environment: lab
 # parameters:
-#   fw_enabled: 'no'
-#   mailrelay: smtp.example.com
+#   fwenabled: 'no'
+#   mailserver: mail.example.com
 
 import yaml
 import sys
@@ -27,16 +27,17 @@ import ldap
 parser = argparse.ArgumentParser(description='Puppet LDAP ENC script')
 parser.add_argument('fqdn', help='Hostname used for the enc query')
 args = parser.parse_args()
-
 hostname = args.fqdn
 
 ldapserver = 'ldap://ldapserver.example.com:389'
 ldapstring = '(&(objectclass=puppetClient)(cn={hostname}))'.format(hostname=hostname)
 ldapbase = 'ou=Unix,ou=Server,ou=Infrastruktur,ou=Informatik,DC=EXAMPLE,DC=COM'
 ldapfieldexcludelist = ['objectclass']
+environmentfieldname = 'environment'
+classesfieldname = 'puppetclass'
+parametersfieldname = 'puppetvar'
+hostnameregexpattern = '^[0-9a-zA-Z]*\.example\.com$'
 
-class LDAPEmptyListException(Exception):
-  """LDAP query result list is empty"""
 
 def is_valid_fqdn(hostname):
   if len(hostname) > 255:
@@ -51,7 +52,7 @@ def ldap_connect_search():
     connection = ldap.initialize(ldapserver)
     result = connection.search_s(ldapbase, ldap.SCOPE_SUBTREE, ldapstring)
     if not result:
-      raise LDAPEmptyListException('LDAP query result returned empty List')
+      raise Exception('LDAP query result returned empty List')
   except Exception:
     raise
     sys.exit(1)
@@ -81,15 +82,15 @@ def parse_ldap_fields(query_result, query_dn):
   for field, value in query_result.iteritems():
     if field in ldapfieldexcludelist:
       continue
-    if field == 'environment':
-      host_dict['environment'] = value[0]
+    if field == environmentfieldname:
+      host_dict['environment'] = parse_ldap_field_value(value)
       continue
-    if field == 'puppetclass':
-      host_dict['classes'] = value
-      parameter_dict['roles'] = value
+    if field == classesfieldname:
+      host_dict['classes'] = parse_ldap_field_value(value)
+      parameter_dict['roles'] = parse_ldap_field_value(value)
       continue
-    if field == 'puppetvar':
-      for var in query_result['puppetvar']:
+    if field == parametersfieldname:
+      for var in query_result[parametersfieldname]:
         var = var.split('=')
         parameter_dict[var[0]] = var[1]
       continue
@@ -98,7 +99,8 @@ def parse_ldap_fields(query_result, query_dn):
   host_dict['parameters'] = parameter_dict
   return host_dict
 
+
 #print(is_valid_fqdn(hostname))
 ldap_query_dn, ldap_query_result = ldap_connect_search()
 parsed_host_dict = parse_ldap_fields(ldap_query_result, ldap_query_dn)
-print(yaml.dump(parsed_host_dict, default_flow_style=False))
+print(yaml.safe_dump(parsed_host_dict, default_flow_style=False, allow_unicode=True))
