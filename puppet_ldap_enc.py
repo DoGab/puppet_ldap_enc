@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # Puppet LDAP Enc
 # Author: Dominic Gabriel
-# Version: 0.5
+# Version: 0.6
 #
 
 import yaml
@@ -87,8 +87,8 @@ def parse_ldap_fields(query_result, query_dn):
       host_dict['environment'] = parse_ldap_field_value(value)
       continue
     if field == classesfieldname:
-      host_dict['classes'] = parse_ldap_field_value(value)
-      parameter_dict['roles'] = parse_ldap_field_value(value)
+      host_dict['classes'] = value
+      parameter_dict['roles'] = value
       continue
     if field == parametersfieldname:
       for var in query_result[parametersfieldname]:
@@ -101,22 +101,31 @@ def parse_ldap_fields(query_result, query_dn):
   return host_dict
 
 def write_cache(hosts):
-  if not os.path.exists(cachepath):
-    os.makedirs(cachepath)
-  with io.open(cachefile, 'w') as outfile:
-    yaml.safe_dump(hosts, outfile, default_flow_style=False, allow_unicode=True)
-  outfile.close()
+  try:
+    if not os.path.exists(cachepath):
+      os.makedirs(cachepath)
+  except Exception:
+    write_to_syslog("unable to access " + cachepath + " for creating directory")
+    return
+  try:
+    with io.open(cachefile, 'w') as outfile:
+      yaml.safe_dump(hosts, outfile, default_flow_style=False, allow_unicode=True)
+  except Exception:
+    write_to_syslog("unable to open file " + cachefile + " for writing cache")
+  else:
+    outfile.close()
 
 def read_cache():
-  if os.path.isfile(cachefile):
+  try:
     with open(cachefile, 'r') as stream:
       yamlloaded = yaml.safe_load(stream)
-  else:
+  except Exception:
     write_to_syslog('Cache file not available')
     sys.exit(1)
-  stream.close()
-  print_yaml(yamlloaded)
-  sys.exit(0)
+  else:
+    stream.close()
+    print_yaml(yamlloaded)
+    sys.exit(0)
 
 def print_yaml(data):
   print(yaml.safe_dump(data, default_flow_style=False, allow_unicode=True))

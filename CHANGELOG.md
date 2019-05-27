@@ -1,5 +1,10 @@
 # Puppet LDAP Enc Changelog
 
+## Version 0.6
+
+* Bugfix: classes will always get passed to puppet as list event if it contains one class
+* Added exception handling around file access in `read_cache` and `write_cache` methods
+
 ## Verison 0.5
 
 * Logging to syslog added
